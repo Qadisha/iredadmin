@@ -1,3 +1,6 @@
+#
+#   Check the accounts with a password change in the latest 4 hours and notify the owner about this.
+#
 #!/bin/bash
 USER=''
 PASSWORD=''
