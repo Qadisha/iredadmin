@@ -14,7 +14,9 @@ else
      mailq | tail -n +2| awk 'BEGIN {RS = ""} /over quota/ {print $1}' | postsuper -d -
      mailq | tail -n +2| awk 'BEGIN {RS = ""} /Mailbox has exceeded the limit/ {print $1}' | postsuper -d -
      mailq | tail -n +2| awk 'BEGIN {RS = ""} /Mailbox full/ {print $1}' | postsuper -d -
+     mailq | tail -n +2| awk 'BEGIN {RS = ""} /mailbox full/ {print $1}' | postsuper -d -
     
     # Destination issues temporary
      mailq | tail -n +2| awk 'BEGIN {RS = ""} /Connection timed out/ {print $1}' | postsuper -d -
+     mailq | tail -n +2| awk 'BEGIN {RS = ""} /connect to ws1.infocube.it\[51\.68\.76\.103\]:25: No route to host/ {print $1}' | postsuper -d -
 fi
