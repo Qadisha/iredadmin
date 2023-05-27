@@ -30,7 +30,7 @@ fi
 
 
 #
-#	Check the remote storage - NFS/ZFS
+#	DEPRECATED Check the remote storage - NFS/ZFS 
 #
 if [ -d "/var/vmail/$DOMAINNAME" ] 
 then
@@ -43,3 +43,35 @@ then
 else
     echo "Error: Remote directory does not exists."
 fi
+
+
+#
+#       Check the remote storage - NFS/ZFS
+#
+if [ -d "/home/vmailnew/$DOMAINNAME" ]
+then
+    echo "Remote directory exists."
+    ${CMD_COMPRESS} $TMPSTORAGE/${TIMESTAMP}_${DOMAINNAME}.tar.gz /home/vmailnew/$DOMAINNAME
+
+    # Store the archive to BackBlaze bucket
+    ${CMD_B2} ${S3STORAGE} $TMPSTORAGE/${TIMESTAMP}_${DOMAINNAME}.tar.gz  ${TIMESTAMP}_${DOMAINNAME}.tar.gz
+
+else
+    echo "Error: Remote directory does not exists."
+fi
+
+#
+#       Check the remote storage - NFS/ZFS - Temporary domains no longer hosted
+#
+if [ -d "/home/vmailnew/OLD/$DOMAINNAME" ]
+then
+    echo "Remote directory exists."
+    ${CMD_COMPRESS} $TMPSTORAGE/${TIMESTAMP}_${DOMAINNAME}.tar.gz /home/vmailnew/OLD/$DOMAINNAME
+
+    # Store the archive to BackBlaze bucket
+    ${CMD_B2} ${S3STORAGE} $TMPSTORAGE/${TIMESTAMP}_${DOMAINNAME}.tar.gz  ${TIMESTAMP}_${DOMAINNAME}.tar.gz
+
+else
+    echo "Error: Remote directory does not exists."
+fi
+
