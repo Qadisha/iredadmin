@@ -34,7 +34,7 @@ release_lock() {
 initialize_ipset() {
     if ! ipset list "$IPSET_NAME" &>/dev/null; then
         echo "Creating ipset: $IPSET_NAME"
-        ipset create "$IPSET_NAME" hash:ip maxelem 100000 timeout 86400
+        ipset create "$IPSET_NAME" hash:ip maxelem 100000 timeout 3600
         iptables -I INPUT -m set --match-set "$IPSET_NAME" src -j DROP
     fi
 }
@@ -78,3 +78,41 @@ check_and_block_ips() {
         
         # Check if the log entry is within the time window
         if (( CURRENT_TIME - LOG_TIME <= TIME_WINDOW )); then
+            # Skip if the IP is in the whitelist
+            if grep -q "$IP" "$WHITELIST_FILE"; then
+                echo "Skipping whitelisted IP: $IP"
+                continue
+            fi
+
+            # Add the IP to the ipset if not already present
+            if ! ipset test "$IPSET_NAME" "$IP" &>/dev/null; then
+                echo "Blocking IP: $IP"
+                ipset add "$IPSET_NAME" "$IP"
+            fi
+        fi
+    done
+}
+
+# Main execution
+acquire_lock
+trap release_lock EXIT
+
+# Initialize ipset
+initialize_ipset
+
+# Initial whitelist update
+update_whitelist
+
+# Run the script periodically (every 5 minutes)
+while true; do
+    # Update the whitelist
+    update_whitelist
+
+    # Unblock any IPs that are now whitelisted
+    unblock_whitelisted_ips
+
+    # Check and block offending IPs
+    check_and_block_ips
+
+    sleep 300
+done
