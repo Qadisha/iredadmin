@@ -18,25 +18,33 @@ WHITELIST_FILE="/tmp/ip_whitelist.txt"
 # Name of the ipset set for blocked IPs
 IPSET_NAME="blocked_ips"
 
-# Lock file to ensure only one instance is running
-LOCKFILE="/tmp/qd_ban.lock"
+# PID file to track running instances
+PIDFILE="/tmp/qd_ban.pid"
 
 # Function to log messages
 log_message() {
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $1" >> "$SCRIPT_LOGFILE"
 }
 
-# Function to create and acquire the lock
-acquire_lock() {
-    exec 200>"$LOCKFILE" || exit 1
-    flock -n 200 || { log_message "Another instance of the script is already running. Exiting."; exit 1; }
+# Function to check and handle existing instances
+check_and_kill_existing_instance() {
+    if [[ -f "$PIDFILE" ]]; then
+        OLD_PID=$(cat "$PIDFILE")
+        if ps -p "$OLD_PID" &>/dev/null; then
+            log_message "Existing instance found with PID $OLD_PID. Killing it..."
+            kill "$OLD_PID" && log_message "Old instance killed."
+        fi
+        rm -f "$PIDFILE"
+    fi
+    echo $$ > "$PIDFILE"
 }
 
-# Function to release the lock
-release_lock() {
-    flock -u 200
-    rm -f "$LOCKFILE"
+# Function to clean up PID file on exit
+cleanup() {
+    rm -f "$PIDFILE"
+    log_message "Script terminated. Cleanup complete."
 }
+trap cleanup EXIT
 
 # Function to initialize ipset
 initialize_ipset() {
@@ -102,8 +110,8 @@ check_and_block_ips() {
 }
 
 # Main execution
-acquire_lock
-trap release_lock EXIT
+check_and_kill_existing_instance
+log_message "Starting new instance of qd_ban with PID $$."
 
 # Initialize ipset
 initialize_ipset
