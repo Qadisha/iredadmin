@@ -3,6 +3,9 @@
 # Path to the mail log file
 LOGFILE="/var/log/mail.log"
 
+# Path to the script log file
+SCRIPT_LOGFILE="/var/log/qd_ban.log"
+
 # Time window in seconds (last hour = 3600 seconds)
 TIME_WINDOW=3600
 
@@ -16,12 +19,17 @@ WHITELIST_FILE="/tmp/ip_whitelist.txt"
 IPSET_NAME="blocked_ips"
 
 # Lock file to ensure only one instance is running
-LOCKFILE="/tmp/sasl_blocker.lock"
+LOCKFILE="/tmp/qd_ban.lock"
+
+# Function to log messages
+log_message() {
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $1" >> "$SCRIPT_LOGFILE"
+}
 
 # Function to create and acquire the lock
 acquire_lock() {
     exec 200>"$LOCKFILE" || exit 1
-    flock -n 200 || { echo "Another instance of the script is already running. Exiting."; exit 1; }
+    flock -n 200 || { log_message "Another instance of the script is already running. Exiting."; exit 1; }
 }
 
 # Function to release the lock
@@ -33,7 +41,7 @@ release_lock() {
 # Function to initialize ipset
 initialize_ipset() {
     if ! ipset list "$IPSET_NAME" &>/dev/null; then
-        echo "Creating ipset: $IPSET_NAME"
+        log_message "Creating ipset: $IPSET_NAME"
         ipset create "$IPSET_NAME" hash:ip maxelem 100000 timeout 3600
         iptables -I INPUT -m set --match-set "$IPSET_NAME" src -j DROP
     fi
@@ -41,21 +49,21 @@ initialize_ipset() {
 
 # Function to update the whitelist
 update_whitelist() {
-    echo "Updating IP whitelist from $WHITELIST_URL..."
+    log_message "Updating IP whitelist from $WHITELIST_URL..."
     curl -s -o "$WHITELIST_FILE" "$WHITELIST_URL"
     if [[ $? -ne 0 ]]; then
-        echo "Failed to download whitelist file. Proceeding without an update."
+        log_message "Failed to download whitelist file. Proceeding without an update."
     else
-        echo "Whitelist updated."
+        log_message "Whitelist updated."
     fi
 }
 
 # Function to unblock whitelisted IPs
 unblock_whitelisted_ips() {
-    echo "Unblocking whitelisted IPs from ipset..."
+    log_message "Unblocking whitelisted IPs from ipset..."
     while IFS= read -r ip; do
         if ipset test "$IPSET_NAME" "$ip" &>/dev/null; then
-            echo "Removing whitelisted IP: $ip"
+            log_message "Removing whitelisted IP: $ip"
             ipset del "$IPSET_NAME" "$ip"
         fi
     done < "$WHITELIST_FILE"
@@ -63,7 +71,7 @@ unblock_whitelisted_ips() {
 
 # Function to check and block IPs
 check_and_block_ips() {
-    echo "Checking log file for failed SASL authentication attempts..."
+    log_message "Checking log file for failed SASL authentication attempts..."
     # Get the current timestamp
     CURRENT_TIME=$(date +%s)
     
@@ -80,13 +88,13 @@ check_and_block_ips() {
         if (( CURRENT_TIME - LOG_TIME <= TIME_WINDOW )); then
             # Skip if the IP is in the whitelist
             if grep -q "$IP" "$WHITELIST_FILE"; then
-                echo "Skipping whitelisted IP: $IP"
+                log_message "Skipping whitelisted IP: $IP"
                 continue
             fi
 
             # Add the IP to the ipset if not already present
             if ! ipset test "$IPSET_NAME" "$IP" &>/dev/null; then
-                echo "Blocking IP: $IP"
+                log_message "Blocking IP: $IP"
                 ipset add "$IPSET_NAME" "$IP"
             fi
         fi
